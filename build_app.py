@@ -108,6 +108,73 @@ def create_icon():
     return icns_path
 
 
+def create_dmg(app_path, output_dir):
+    """Create a DMG installer with drag-to-install interface"""
+    dmg_name = "PHI Redactor"
+    dmg_path = output_dir / f"{dmg_name}.dmg"
+    temp_dmg_path = output_dir / f"{dmg_name}_temp.dmg"
+    volume_name = "PHI Redactor"
+
+    # Remove existing DMG files
+    for f in [dmg_path, temp_dmg_path]:
+        if f.exists():
+            f.unlink()
+
+    # Create a temporary directory for DMG contents
+    dmg_contents = output_dir / "dmg_contents"
+    if dmg_contents.exists():
+        shutil.rmtree(dmg_contents)
+    dmg_contents.mkdir()
+
+    # Copy app to DMG contents
+    shutil.copytree(app_path, dmg_contents / "PHI Redactor.app", symlinks=True)
+
+    # Create Applications symlink
+    applications_link = dmg_contents / "Applications"
+    subprocess.run(['ln', '-s', '/Applications', str(applications_link)], check=True)
+
+    # Calculate size needed (app size + 50MB buffer)
+    app_size_bytes = sum(
+        f.stat().st_size for f in app_path.rglob('*') if f.is_file()
+    )
+    dmg_size_mb = (app_size_bytes // (1024 * 1024)) + 50
+
+    try:
+        # Create writable DMG
+        subprocess.run([
+            'hdiutil', 'create',
+            '-size', f'{dmg_size_mb}m',
+            '-fs', 'HFS+',
+            '-volname', volume_name,
+            '-srcfolder', str(dmg_contents),
+            str(temp_dmg_path)
+        ], check=True, capture_output=True)
+
+        # Convert to compressed read-only DMG
+        subprocess.run([
+            'hdiutil', 'convert',
+            str(temp_dmg_path),
+            '-format', 'UDZO',  # Compressed
+            '-imagekey', 'zlib-level=9',  # Max compression
+            '-o', str(dmg_path)
+        ], check=True, capture_output=True)
+
+        # Cleanup
+        temp_dmg_path.unlink()
+        shutil.rmtree(dmg_contents)
+
+        return dmg_path
+
+    except subprocess.CalledProcessError as e:
+        print(f"DMG creation failed: {e}")
+        # Cleanup on failure
+        if temp_dmg_path.exists():
+            temp_dmg_path.unlink()
+        if dmg_contents.exists():
+            shutil.rmtree(dmg_contents)
+        return None
+
+
 def build_app():
     """Build the macOS app using PyInstaller"""
     project_dir = Path(__file__).parent
@@ -158,7 +225,7 @@ def build_app():
             print(f"\nApp created at: {app_path}")
             print("\nTo install, drag 'PHI Redactor.app' to your Applications folder.")
 
-            # Also create a DMG for easy distribution (optional)
+            # Create distributable zip
             print("\nCreating distributable zip...")
             zip_path = project_dir / "PHI Redactor.zip"
             shutil.make_archive(
@@ -168,6 +235,12 @@ def build_app():
                 "PHI Redactor.app"
             )
             print(f"Zip created at: {zip_path}")
+
+            # Create DMG for professional distribution
+            print("\nCreating DMG installer...")
+            dmg_path = create_dmg(app_path, project_dir)
+            if dmg_path:
+                print(f"DMG created at: {dmg_path}")
 
     except subprocess.CalledProcessError as e:
         print(f"\n✗ Build failed: {e}")
