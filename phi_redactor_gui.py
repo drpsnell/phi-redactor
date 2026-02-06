@@ -24,21 +24,117 @@ from phi_redactor import PHIRedactor
 
 
 # ============================================================================
-# Color Palette - Clean, professional medical aesthetic
+# Color Palette - Modern, clean design
 # ============================================================================
 COLORS = {
-    'bg': '#F8FAFC',           # Light gray-blue background
+    'bg': '#F8FAFC',           # Soft off-white background
     'surface': '#FFFFFF',       # White cards/surfaces
-    'primary': '#0F172A',       # Dark slate for headers
-    'secondary': '#475569',     # Medium gray for text
-    'accent': '#2563EB',        # Professional blue
-    'accent_hover': '#1D4ED8',  # Darker blue on hover
-    'success': '#059669',       # Green for success
-    'warning': '#D97706',       # Amber for warnings
-    'danger': '#DC2626',        # Red for errors
+    'primary': '#1E293B',       # Slate for headers
+    'secondary': '#475569',     # Slate gray for body text
+    'accent': '#6366F1',        # Indigo for buttons (modern)
+    'accent_hover': '#4F46E5',  # Deeper indigo on hover
+    'success': '#10B981',       # Emerald for success
+    'warning': '#F59E0B',       # Amber for warnings
+    'danger': '#EF4444',        # Red for errors/selections
     'border': '#E2E8F0',        # Light border
-    'muted': '#94A3B8',         # Muted text
+    'muted': '#64748B',         # Slate muted text
+    'button_text': '#FFFFFF',   # White text on buttons
+    'disabled_bg': '#CBD5E1',   # Soft gray for disabled buttons
+    'disabled_fg': '#94A3B8',   # Muted text for disabled
 }
+
+# ============================================================================
+# Font sizes - Modern typography
+# ============================================================================
+FONTS = {
+    'header': ('SF Pro Display', 14, 'bold'),
+    'title': ('SF Pro Display', 20, 'bold'),
+    'body': ('SF Pro Text', 12),
+    'body_bold': ('SF Pro Text', 12, 'bold'),
+    'button': ('SF Pro Text', 13, 'bold'),
+    'small': ('SF Pro Text', 11),
+    'mono': ('SF Mono', 12),
+}
+
+
+class ColorButton(tk.Frame):
+    """
+    A button widget that properly displays background colors on macOS.
+    Uses a Frame with a Label to ensure colors render correctly.
+    """
+    def __init__(self, parent, text, command, bg='#6366F1', fg='#FFFFFF',
+                 font=('Helvetica', 13, 'bold'), padx=20, pady=10, **kwargs):
+        super().__init__(parent, bg=bg, cursor='arrow')
+
+        self.command = command
+        self.bg_color = bg
+        self.fg_color = fg
+        self.disabled = False
+
+        self.label = tk.Label(
+            self,
+            text=text,
+            font=font,
+            fg=fg,
+            bg=bg,
+            padx=padx,
+            pady=pady,
+            cursor='arrow'
+        )
+        self.label.pack()
+
+        # Bind click events
+        self.bind('<Button-1>', self._on_click)
+        self.label.bind('<Button-1>', self._on_click)
+
+        # Hover effects
+        self.bind('<Enter>', self._on_enter)
+        self.label.bind('<Enter>', self._on_enter)
+        self.bind('<Leave>', self._on_leave)
+        self.label.bind('<Leave>', self._on_leave)
+
+    def _on_click(self, event):
+        if not self.disabled and self.command:
+            self.command()
+
+    def _on_enter(self, event):
+        if not self.disabled:
+            # Darken the color slightly on hover
+            self.config(bg=COLORS['accent_hover'])
+            self.label.config(bg=COLORS['accent_hover'])
+
+    def _on_leave(self, event):
+        if not self.disabled:
+            self.config(bg=self.bg_color)
+            self.label.config(bg=self.bg_color)
+
+    def config(self, **kwargs):
+        if 'state' in kwargs:
+            if kwargs['state'] == tk.DISABLED:
+                self.disabled = True
+                self.configure(bg=COLORS['disabled_bg'])
+                self.label.config(bg=COLORS['disabled_bg'], fg=COLORS['disabled_fg'], cursor='arrow')
+                self['cursor'] = 'arrow'
+            else:
+                self.disabled = False
+                self.configure(bg=self.bg_color)
+                self.label.config(bg=self.bg_color, fg=self.fg_color, cursor='arrow')
+                self['cursor'] = 'arrow'
+            del kwargs['state']
+        if 'bg' in kwargs:
+            self.bg_color = kwargs['bg']
+            super().config(bg=kwargs['bg'])
+            self.label.config(bg=kwargs['bg'])
+            del kwargs['bg']
+        if 'fg' in kwargs:
+            self.fg_color = kwargs['fg']
+            self.label.config(fg=kwargs['fg'])
+            del kwargs['fg']
+        if 'text' in kwargs:
+            self.label.config(text=kwargs['text'])
+            del kwargs['text']
+        if kwargs:
+            super().config(**kwargs)
 
 
 class DocumentPreviewWindow:
@@ -94,7 +190,7 @@ class DocumentPreviewWindow:
         tk.Label(
             header_frame,
             text="Manual Redaction",
-            font=('SF Pro Display', 20, 'bold'),
+            font=('SF Pro Display', 18, 'bold'),
             fg=COLORS['primary'],
             bg=COLORS['bg']
         ).pack(side=tk.LEFT)
@@ -102,7 +198,7 @@ class DocumentPreviewWindow:
         tk.Label(
             header_frame,
             text="Click and drag to select areas to redact",
-            font=('SF Pro Text', 12),
+            font=FONTS['body'],
             fg=COLORS['secondary'],
             bg=COLORS['bg']
         ).pack(side=tk.LEFT, padx=(15, 0))
@@ -124,7 +220,7 @@ class DocumentPreviewWindow:
         self.page_label = tk.Label(
             self.nav_frame,
             text="Page 1 of 1",
-            font=('SF Pro Text', 11),
+            font=FONTS['body'],
             fg=COLORS['secondary'],
             bg=COLORS['surface']
         )
@@ -176,7 +272,7 @@ class DocumentPreviewWindow:
         status_bar = tk.Label(
             main_frame,
             textvariable=self.status_var,
-            font=('SF Pro Text', 11),
+            font=FONTS['body'],
             fg=COLORS['muted'],
             bg=COLORS['bg'],
             anchor='w'
@@ -184,25 +280,18 @@ class DocumentPreviewWindow:
         status_bar.pack(fill=tk.X, pady=(10, 0))
 
     def _create_button(self, parent, text, command, style='secondary'):
-        """Create a styled button"""
+        """Create a styled button with high contrast"""
         if style == 'primary':
-            btn = tk.Button(
+            btn = ColorButton(
                 parent, text=text, command=command,
-                font=('SF Pro Text', 11, 'bold'),
-                fg='white', bg=COLORS['accent'],
-                activeforeground='white', activebackground=COLORS['accent_hover'],
-                relief=tk.FLAT, cursor='hand2',
-                padx=16, pady=6
+                bg=COLORS['accent'], fg=COLORS['button_text'],
+                font=FONTS['button'], padx=16, pady=8
             )
         else:
-            btn = tk.Button(
+            btn = ColorButton(
                 parent, text=text, command=command,
-                font=('SF Pro Text', 11),
-                fg=COLORS['secondary'], bg=COLORS['surface'],
-                activeforeground=COLORS['primary'], activebackground=COLORS['border'],
-                relief=tk.FLAT, cursor='hand2',
-                highlightbackground=COLORS['border'], highlightthickness=1,
-                padx=12, pady=5
+                bg='#64748B', fg=COLORS['button_text'],
+                font=FONTS['body'], padx=12, pady=6
             )
         return btn
 
@@ -474,15 +563,15 @@ class PHIRedactorGUI:
             'Custom.Horizontal.TProgressbar',
             troughcolor=COLORS['border'],
             background=COLORS['accent'],
-            thickness=4
+            thickness=6
         )
 
-        # Configure checkbuttons
+        # Configure checkbuttons with larger font
         style.configure(
             'Custom.TCheckbutton',
             background=COLORS['surface'],
             foreground=COLORS['secondary'],
-            font=('SF Pro Text', 11)
+            font=FONTS['body']
         )
 
     def _setup_ui(self):
@@ -496,13 +585,13 @@ class PHIRedactorGUI:
         header_frame.pack(fill=tk.X, pady=(0, 20))
 
         # App icon/badge
-        badge_frame = tk.Frame(header_frame, bg=COLORS['accent'], padx=8, pady=4)
+        badge_frame = tk.Frame(header_frame, bg=COLORS['accent'], padx=10, pady=6)
         badge_frame.pack(side=tk.LEFT)
         tk.Label(
             badge_frame,
             text="PHI",
-            font=('SF Pro Display', 14, 'bold'),
-            fg='white',
+            font=('SF Pro Display', 16, 'bold'),
+            fg=COLORS['button_text'],
             bg=COLORS['accent']
         ).pack()
 
@@ -513,7 +602,7 @@ class PHIRedactorGUI:
         tk.Label(
             title_frame,
             text="PHI Redactor",
-            font=('SF Pro Display', 22, 'bold'),
+            font=('SF Pro Display', 20, 'bold'),
             fg=COLORS['primary'],
             bg=COLORS['bg']
         ).pack(anchor='w')
@@ -521,7 +610,7 @@ class PHIRedactorGUI:
         tk.Label(
             title_frame,
             text="HIPAA-compliant document redaction",
-            font=('SF Pro Text', 12),
+            font=FONTS['body'],
             fg=COLORS['muted'],
             bg=COLORS['bg']
         ).pack(anchor='w')
@@ -536,7 +625,7 @@ class PHIRedactorGUI:
         tk.Label(
             file_inner,
             text="Select Document",
-            font=('SF Pro Text', 11, 'bold'),
+            font=FONTS['header'],
             fg=COLORS['primary'],
             bg=COLORS['surface']
         ).pack(anchor='w')
@@ -544,7 +633,7 @@ class PHIRedactorGUI:
         tk.Label(
             file_inner,
             text="PDF, PNG, JPG, TIFF, BMP, GIF, or TXT",
-            font=('SF Pro Text', 10),
+            font=FONTS['body'],
             fg=COLORS['muted'],
             bg=COLORS['surface']
         ).pack(anchor='w', pady=(2, 10))
@@ -557,7 +646,7 @@ class PHIRedactorGUI:
         self.file_entry = tk.Entry(
             entry_frame,
             textvariable=self.file_var,
-            font=('SF Pro Text', 12),
+            font=FONTS['body'],
             fg=COLORS['primary'],
             bg='#F8FAFC',
             relief=tk.FLAT,
@@ -567,21 +656,15 @@ class PHIRedactorGUI:
         )
         self.file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8, padx=(0, 10))
 
-        self.browse_btn = tk.Button(
+        self.browse_btn = ColorButton(
             entry_frame,
             text="Browse...",
             command=self._browse_file,
-            font=('SF Pro Text', 11),
-            fg=COLORS['secondary'],
-            bg=COLORS['surface'],
-            activeforeground=COLORS['primary'],
-            activebackground=COLORS['border'],
-            relief=tk.FLAT,
-            cursor='hand2',
-            highlightbackground=COLORS['border'],
-            highlightthickness=1,
+            bg=COLORS['accent'],
+            fg=COLORS['button_text'],
+            font=FONTS['button'],
             padx=14,
-            pady=6
+            pady=8
         )
         self.browse_btn.pack(side=tk.LEFT)
 
@@ -595,7 +678,7 @@ class PHIRedactorGUI:
         tk.Label(
             options_inner,
             text="Options",
-            font=('SF Pro Text', 11, 'bold'),
+            font=FONTS['header'],
             fg=COLORS['primary'],
             bg=COLORS['surface']
         ).pack(anchor='w', pady=(0, 10))
@@ -622,41 +705,30 @@ class PHIRedactorGUI:
         button_frame = tk.Frame(main_frame, bg=COLORS['bg'])
         button_frame.pack(fill=tk.X, pady=(5, 15))
 
-        self.redact_btn = tk.Button(
+        self.redact_btn = ColorButton(
             button_frame,
             text="Redact PHI",
             command=self._start_redaction,
-            font=('SF Pro Text', 13, 'bold'),
-            fg='white',
             bg=COLORS['accent'],
-            activeforeground='white',
-            activebackground=COLORS['accent_hover'],
-            relief=tk.FLAT,
-            cursor='hand2',
+            fg=COLORS['button_text'],
+            font=('Helvetica', 14, 'bold'),
             padx=28,
-            pady=10
+            pady=12
         )
         self.redact_btn.pack(side=tk.LEFT)
 
-        self.manual_btn = tk.Button(
+        self.manual_btn = ColorButton(
             button_frame,
             text="Review & Manual Redact",
             command=self._open_manual_redaction,
-            font=('SF Pro Text', 11),
-            fg=COLORS['muted'],
-            bg=COLORS['bg'],
-            activeforeground=COLORS['secondary'],
-            activebackground=COLORS['border'],
-            relief=tk.FLAT,
-            cursor='hand2',
-            state=tk.DISABLED,
-            disabledforeground=COLORS['border'],
-            highlightbackground=COLORS['border'],
-            highlightthickness=1,
+            bg='#64748B',
+            fg=COLORS['button_text'],
+            font=FONTS['button'],
             padx=14,
-            pady=8
+            pady=10
         )
         self.manual_btn.pack(side=tk.LEFT, padx=(12, 0))
+        self.manual_btn.config(state=tk.DISABLED)  # Start disabled
 
         # ── Progress Bar ────────────────────────────────────────────────────
         self.progress = ttk.Progressbar(
@@ -676,7 +748,7 @@ class PHIRedactorGUI:
         tk.Label(
             results_inner,
             text="Results",
-            font=('SF Pro Text', 11, 'bold'),
+            font=FONTS['header'],
             fg=COLORS['primary'],
             bg=COLORS['surface']
         ).pack(anchor='w', pady=(0, 8))
@@ -688,7 +760,7 @@ class PHIRedactorGUI:
         self.results_text = tk.Text(
             text_frame,
             wrap=tk.WORD,
-            font=('SF Mono', 11),
+            font=FONTS['mono'],
             fg=COLORS['secondary'],
             bg='#FAFBFC',
             relief=tk.FLAT,
@@ -715,7 +787,7 @@ class PHIRedactorGUI:
         tk.Label(
             footer_frame,
             text="100% Local Processing • HIPAA Compliant",
-            font=('SF Pro Text', 10),
+            font=FONTS['body'],
             fg=COLORS['muted'],
             bg=COLORS['bg']
         ).pack(side=tk.LEFT)
@@ -780,9 +852,9 @@ class PHIRedactorGUI:
 
         # Update UI state
         self.processing = True
-        self.redact_btn.config(state=tk.DISABLED, bg=COLORS['muted'])
-        self.browse_btn.config(state=tk.DISABLED)
-        self.manual_btn.config(state=tk.DISABLED)
+        self.redact_btn.config(state=tk.DISABLED, bg='#64748B')
+        self.browse_btn.config(state=tk.DISABLED, bg='#64748B')
+        self.manual_btn.config(state=tk.DISABLED, bg='#64748B')
         self.last_output_path = None
         self.progress.start(10)
         self._clear_log()
@@ -841,14 +913,15 @@ class PHIRedactorGUI:
         """Enable the manual redaction button with proper styling"""
         self.manual_btn.config(
             state=tk.NORMAL,
-            fg=COLORS['secondary']
+            fg=COLORS['button_text'],
+            bg=COLORS['accent']
         )
 
     def _reset_ui(self):
         """Reset UI after processing"""
         self.processing = False
-        self.redact_btn.config(state=tk.NORMAL, bg=COLORS['accent'])
-        self.browse_btn.config(state=tk.NORMAL)
+        self.redact_btn.config(state=tk.NORMAL, bg=COLORS['accent'], fg=COLORS['button_text'])
+        self.browse_btn.config(state=tk.NORMAL, bg=COLORS['accent'], fg=COLORS['button_text'])
         self.progress.stop()
 
     def _offer_open_folder(self, output_path: str):
