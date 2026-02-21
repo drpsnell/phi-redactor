@@ -39,11 +39,19 @@ def configure_environment():
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = tesseract_path
         os.environ['TESSDATA_PREFIX'] = tessdata_path
-    
+
     # Add Poppler to PATH for pdf2image
     if os.path.exists(poppler_path):
         current_path = os.environ.get('PATH', '')
         os.environ['PATH'] = poppler_path + os.pathsep + current_path
+
+    # Ensure Homebrew paths are in PATH (covers Apple Silicon & Intel Macs)
+    homebrew_paths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
+    current_path = os.environ.get('PATH', '')
+    existing = set(current_path.split(os.pathsep))
+    extras = [p for p in homebrew_paths if p not in existing]
+    if extras:
+        os.environ['PATH'] = os.pathsep.join(extras) + os.pathsep + current_path
 
 def main():
     """Configure environment and launch the GUI"""
